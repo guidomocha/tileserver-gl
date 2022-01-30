@@ -7,7 +7,9 @@ const clone = require('clone');
 const glyphCompose = require('@mapbox/glyph-pbf-composite');
 
 
-module.exports.getPublicUrl = (publicUrl, req) => publicUrl || `${req.protocol}://${req.headers.host}/`;
+const createHostUrl = (req) => req.headers['x-forwarded-host'] ? `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host']}${req.headers['tileserver-base-url'] || ''}` : `${req.protocol}://${req.headers.host}${req.headers['tileserver-base-url'] || ''}`;
+
+module.exports.getPublicUrl = (publicUrl, req) => publicUrl || req.headers['tileserver-public-url'] || `${createHostUrl(req)}/`;
 
 module.exports.getTileUrls = (req, domains, path, format, publicUrl, aliases) => {
 
@@ -33,9 +35,6 @@ module.exports.getTileUrls = (req, domains, path, format, publicUrl, aliases) =>
     }
     domains = newDomains;
   }
-  if (!domains || domains.length == 0) {
-    domains = [req.headers.host];
-  }
 
   const key = req.query.key;
   const queryParams = [];
@@ -52,9 +51,15 @@ module.exports.getTileUrls = (req, domains, path, format, publicUrl, aliases) =>
   }
 
   const uris = [];
+  publicUrl = publicUrl || req.headers['tileserver-public-url'];
   if (!publicUrl) {
-    for (const domain of domains) {
-      uris.push(`${req.protocol}://${domain}/${path}/{z}/{x}/{y}.${format}${query}`);
+    if (domains && domains.length > 0) {
+      for (const domain of domains) {
+        uris.push(`${req.protocol}://${domain}/${path}/{z}/{x}/{y}.${format}${query}`);
+      }
+    }
+    else {
+      uris.push(`${createHostUrl(req)}/${path}/{z}/{x}/{y}.${format}${query}`);
     }
   } else {
     uris.push(`${publicUrl}${path}/{z}/{x}/{y}.${format}${query}`)
